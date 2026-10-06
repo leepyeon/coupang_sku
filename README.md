@@ -17,6 +17,7 @@ Node.js 18 이상만 있으면 됩니다. (외부 패키지 없음)
 
 ```bash
 cp .env.example .env   # 키 입력
+npm run check          # 키 · IP · API 연결 점검 (상품 목록 → 아이템 → 수량/가격/상태)
 npm start              # http://localhost:3000
 npm test
 ```
