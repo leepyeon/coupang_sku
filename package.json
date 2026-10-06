@@ -1,0 +1,13 @@
+{
+  "name": "coupang-sku-dashboard",
+  "version": "0.1.0",
+  "description": "쿠팡 Wing Open API - 상품 아이템별 수량/가격/상태 조회 대시보드",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test"
+  }
+}

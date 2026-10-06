@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>쿠팡 SKU 대시보드</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --text: #1b1f24; --muted: #667085; --line: #e4e7ec;
+    --accent: #2f6fed; --ok: #12805c; --warn: #b54708; --bad: #c4320a; --off: #667085;
+    --ok-bg: #e7f6ef; --warn-bg: #fef4e6; --bad-bg: #fdecea; --off-bg: #eef0f3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115; --panel: #171a21; --text: #e6e8ec; --muted: #98a2b3; --line: #2a2f3a;
+      --accent: #6a9bff; --ok: #4cc38a; --warn: #f5a524; --bad: #ff7a59; --off: #98a2b3;
+      --ok-bg: #12301f; --warn-bg: #3a2a0f; --bad-bg: #3a1a12; --off-bg: #232733;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.5 system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+  main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 16px; }
+  h1 { font-size: 20px; margin: 0; }
+  .muted { color: var(--muted); }
+  .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  textarea, input, select, button { font: inherit; color: inherit; }
+  textarea, input, select { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+  textarea { width: 100%; min-height: 72px; resize: vertical; font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+  button { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+  .row label { display: inline-flex; gap: 6px; align-items: center; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+         text-align: left; cursor: pointer; }
+  .kpi[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .kpi .label { color: var(--muted); font-size: 12px; }
+  .kpi .value { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; cursor: pointer; user-select: none; }
+  th.num, td.num { text-align: right; }
+  th[data-dir="asc"]::after { content: " ▲"; }
+  th[data-dir="desc"]::after { content: " ▼"; }
+  .pill { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; }
+  .pill.ok { background: var(--ok-bg); color: var(--ok); }
+  .pill.warn { background: var(--warn-bg); color: var(--warn); }
+  .pill.bad { background: var(--bad-bg); color: var(--bad); }
+  .pill.off { background: var(--off-bg); color: var(--off); }
+  .err { color: var(--bad); white-space: normal; }
+  .empty { text-align: center; color: var(--muted); padding: 32px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>쿠팡 상품 아이템 수량 · 가격 · 상태</h1>
+    <span id="mockBadge" class="badge" hidden>MOCK 데이터</span>
+    <span id="status" class="muted"></span>
+  </header>
+
+  <section class="panel">
+    <label for="ids" class="muted">vendorItemId (쉼표 · 공백 · 줄바꿈 구분)</label>
+    <textarea id="ids" placeholder="예) 3000000001, 3000000002"></textarea>
+    <div class="row">
+      <button id="fetchBtn" class="primary">조회</button>
+      <label>자동 새로고침
+        <select id="interval">
+          <option value="0">끔</option><option value="60">1분</option>
+          <option value="300">5분</option><option value="900">15분</option>
+        </select>
+      </label>
+      <label>재고 부족 기준 ≤ <input id="threshold" type="number" min="0" value="5" style="width:70px"></label>
+      <span style="flex:1"></span>
+      <input id="spid" placeholder="등록상품 ID (sellerProductId)" inputmode="numeric" style="width:220px">
+      <button id="loadItemsBtn">아이템 ID 불러오기</button>
+    </div>
+  </section>
+
+  <section class="kpis" id="kpis"></section>
+
+  <section class="panel">
+    <div class="toolbar">
+      <input id="search" placeholder="vendorItemId 검색" style="width:220px">
+      <button id="csvBtn">CSV 내보내기</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th data-key="vendorItemId">vendorItemId</th>
+          <th data-key="state">상태</th>
+          <th data-key="amountInStock" class="num">재고 수량</th>
+          <th data-key="salePrice" class="num">판매가</th>
+          <th data-key="error">비고</th>
+        </tr></thead>
+        <tbody id="tbody"><tr><td colspan="5" class="empty">vendorItemId를 입력하고 조회하세요.</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const store = {
+  get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+const won = new Intl.NumberFormat('ko-KR');
+let rows = [], filter = 'all', sort = { key: 'vendorItemId', dir: 'asc' }, timer = null;
+
+$('#ids').value = store.get('ids', '');
+$('#threshold').value = store.get('threshold', '5');
+$('#interval').value = store.get('interval', '0');
+
+fetch('/api/config').then((r) => r.json()).then((c) => { $('#mockBadge').hidden = !c.mock; });
+
+function stateOf(r) {
+  const t = Number($('#threshold').value || 0);
+  if (!r.ok) return { key: 'error', label: '조회 실패', cls: 'bad' };
+  if (!r.onSale) return { key: 'suspended', label: '판매중지', cls: 'off' };
+  if (!r.amountInStock) return { key: 'soldout', label: '품절', cls: 'bad' };
+  if (r.amountInStock <= t) return { key: 'low', label: '재고 부족', cls: 'warn' };
+  return { key: 'onsale', label: '판매중', cls: 'ok' };
+}
+
+const KPIS = [
+  ['all', '전체'], ['onsale', '판매중'], ['low', '재고 부족'],
+  ['soldout', '품절'], ['suspended', '판매중지'], ['error', '조회 실패'],
+];
+
+function renderKpis() {
+  const counts = { all: rows.length };
+  rows.forEach((r) => { const k = stateOf(r).key; counts[k] = (counts[k] || 0) + 1; });
+  $('#kpis').innerHTML = KPIS.map(([k, label]) =>
+    `<button class="kpi" data-filter="${k}" aria-pressed="${filter === k}">
+       <div class="label">${label}</div><div class="value">${counts[k] || 0}</div></button>`).join('');
+}
+
+function visibleRows() {
+  const q = $('#search').value.trim();
+  const list = rows
+    .map((r) => ({ ...r, _state: stateOf(r) }))
+    .filter((r) => (filter === 'all' || r._state.key === filter) && (!q || r.vendorItemId.includes(q)));
+  const { key, dir } = sort;
+  const val = (r) => key === 'state' ? r._state.label : r[key];
+  list.sort((a, b) => {
+    const x = val(a), y = val(b);
+    if (x == null) return 1; if (y == null) return -1;
+    const c = typeof x === 'number' ? x - y : String(x).localeCompare(String(y), 'ko', { numeric: true });
+    return dir === 'asc' ? c : -c;
+  });
+  return list;
+}
+
+function esc(s) { return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+function renderTable() {
+  document.querySelectorAll('th').forEach((th) => {
+    th.dataset.dir = th.dataset.key === sort.key ? sort.dir : '';
+  });
+  const list = visibleRows();
+  if (!rows.length) return;
+  $('#tbody').innerHTML = list.length ? list.map((r) => `<tr>
+      <td>${esc(r.vendorItemId)}</td>
+      <td><span class="pill ${r._state.cls}">${r._state.label}</span></td>
+      <td class="num">${r.amountInStock == null ? '–' : won.format(r.amountInStock)}</td>
+      <td class="num">${r.salePrice == null ? '–' : won.format(r.salePrice) + '원'}</td>
+      <td class="err">${esc(r.error)}</td></tr>`).join('')
+    : '<tr><td colspan="5" class="empty">조건에 맞는 아이템이 없습니다.</td></tr>';
+}
+
+function render() { renderKpis(); renderTable(); }
+
+async function load() {
+  const ids = $('#ids').value;
+  store.set('ids', ids);
+  if (!ids.trim()) return;
+  $('#fetchBtn').disabled = true;
+  $('#status').textContent = '조회 중…';
+  try {
+    const res = await fetch('/api/inventories?ids=' + encodeURIComponent(ids));
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error);
+    rows = body.items;
+    $('#mockBadge').hidden = !body.mock;
+    $('#status').textContent = '마지막 조회 ' + new Date(body.fetchedAt).toLocaleString('ko-KR');
+    render();
+  } catch (e) {
+    $('#status').textContent = '오류: ' + e.message;
+  } finally {
+    $('#fetchBtn').disabled = false;
+  }
+}
+
+function schedule() {
+  clearInterval(timer);
+  const sec = Number($('#interval').value);
+  store.set('interval', String(sec));
+  if (sec) timer = setInterval(load, sec * 1000);
+}
+
+$('#fetchBtn').onclick = load;
+$('#interval').onchange = schedule;
+$('#threshold').oninput = () => { store.set('threshold', $('#threshold').value); render(); };
+$('#search').oninput = renderTable;
+$('#kpis').onclick = (e) => {
+  const b = e.target.closest('[data-filter]');
+  if (b) { filter = b.dataset.filter; render(); }
+};
+document.querySelector('thead').onclick = (e) => {
+  const key = e.target.dataset.key;
+  if (!key) return;
+  sort = { key, dir: sort.key === key && sort.dir === 'asc' ? 'desc' : 'asc' };
+  renderTable();
+};
+
+$('#loadItemsBtn').onclick = async () => {
+  const id = $('#spid').value.trim();
+  if (!/^\d+$/.test(id)) return;
+  $('#status').textContent = '아이템 목록 불러오는 중…';
+  try {
+    const res = await fetch(`/api/seller-products/${id}/items`);
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error);
+    const existing = new Set($('#ids').value.split(/[\s,]+/).filter(Boolean));
+    body.items.forEach((it) => existing.add(String(it.vendorItemId)));
+    $('#ids').value = [...existing].join(', ');
+    $('#status').textContent = `${body.items.length}개 아이템 추가됨`;
+    load();
+  } catch (e) {
+    $('#status').textContent = '오류: ' + e.message;
+  }
+};
+
+$('#csvBtn').onclick = () => {
+  const head = ['vendorItemId', '상태', '재고수량', '판매가', '판매여부', '비고'];
+  const lines = visibleRows().map((r) => [r.vendorItemId, r._state.label, r.amountInStock ?? '', r.salePrice ?? '',
+    r.ok ? (r.onSale ? 'Y' : 'N') : '', r.error ?? ''].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','));
+  const blob = new Blob(['﻿' + [head.join(','), ...lines].join('\n')], { type: 'text/csv' });
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(blob), download: `coupang-sku-${new Date().toISOString().slice(0, 10)}.csv`,
+  });
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+
+renderKpis();
+schedule();
+if ($('#ids').value.trim()) load();
+</script>
+</body>
+</html>
