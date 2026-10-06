@@ -12,7 +12,13 @@
 - 재고 부족 기준 설정, 정렬, 검색, CSV 내보내기(엑셀 호환), 자동 새로고침(1·5·15분)
 - API 키가 없으면 MOCK 데이터로 동작해서 화면부터 확인 가능
 
-## 실행
+## 가장 쉬운 실행 방법
+1. [Node.js](https://nodejs.org) LTS 설치
+2. 이 저장소를 ZIP으로 내려받아 압축 해제
+3. Windows는 `start-windows.bat`, Mac은 `start-mac.command` 더블클릭
+4. 처음 한 번 업체코드 · Access Key · Secret Key 붙여넣기 → 자동으로 연결 점검 후 대시보드가 열림
+
+## 실행 (터미널)
 Node.js 18 이상만 있으면 됩니다. (외부 패키지 없음)
 
 ```bash
